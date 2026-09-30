@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เกมจิ๊กซอว์เปิดภาพ</title>
+<style>
+:root{--bg:#f4f5fb;--card:#fff;--tx:#1c1d33;--mut:#666a85;--ac:#5b5bd6;--bd:#dcdef0}
+@media (prefers-color-scheme:dark){:root{--bg:#14142a;--card:#20203e;--tx:#eceefc;--mut:#9da0c4;--ac:#8b8bff;--bd:#33335c}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif;min-height:100%}
+h1{font-size:1.15rem;margin:0 0 .75rem}
+.wrap{max-width:1200px;margin:0 auto;padding:16px;display:grid;grid-template-columns:1fr 330px;gap:16px}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:16px}
+canvas{display:block;width:100%;height:auto;border-radius:10px;background:#14142a}
+label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 4px}
+input[type=text],textarea,select{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+textarea{min-height:80px;resize:vertical}
+button{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);cursor:pointer}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tag{display:inline-block;font-size:.75rem;padding:2px 8px;border-radius:99px;background:var(--ac);color:#fff;margin-left:6px}
+.hint{font-size:.8rem;color:var(--mut);margin:8px 0 0}
+hr{border:0;border-top:1px solid var(--bd);margin:16px 0}
+.pvbox{background:#0d0d20;color:#fff;border-radius:10px;padding:10px}
+.pvbox #pvcap{text-align:center;margin-top:8px;min-height:40px}
+body.player{background:#0d0d20;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:12px}
+.stage{width:min(96vw,1000px)}
+.cap{text-align:center;margin-top:14px;min-height:60px}
+.cap b{display:block;font-size:clamp(1.2rem,4vw,2.2rem)}
+.cap span{display:block;font-size:clamp(.95rem,2.4vw,1.4rem);color:#c9cbee;margin-top:6px;white-space:pre-wrap}
+#wait{text-align:center;color:#9da0c4;padding:40px 10px}
+#prog{font-size:.85rem;color:#9da0c4;text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div id="playerView" style="display:none">
+  <div class="stage">
+    <div id="wait">กำลังรอผู้ควบคุมเริ่มเกม…</div>
+    <canvas id="pcv" style="display:none"></canvas>
+    <div id="prog"></div>
+    <div id="cap" class="cap"></div>
+  </div>
+</div>
+
+<div id="hostView" class="wrap" style="display:none">
+  <div>
+    <div class="card">
+      <h1>🧩 มุมมองผู้ควบคุม <span class="tag">เห็นภาพทั้งหมด</span></h1>
+      <canvas id="hcv"></canvas>
+      <p class="hint">คลิกช่อง หรือพิมพ์เลขช่อง เพื่อเปิด/ปิดให้ผู้เล่นเห็น (ช่องที่มืดคือช่องที่ผู้เล่นยังมองไม่เห็น ผู้เล่นจะเห็นเลขกำกับบนช่องที่ยังปิดอยู่)</p>
+      <div class="row">
+        <input type="number" id="jump" min="1" placeholder="เลขช่อง" style="width:110px;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit">
+        <button id="jumpBtn">เปิด/ปิดช่องนี้</button>
+        <button id="rndBtn">🎲 เปิดสุ่ม 1 ชิ้น</button>
+        <button id="allBtn">👁️ เปิดทั้งหมด</button>
+        <button id="noneBtn">🙈 ปิดทั้งหมด</button>
+      </div>
+    </div>
+    <div class="card">
+      <h1>ตัวอย่างสิ่งที่ผู้เล่นเห็น</h1>
+      <div class="pvbox">
+        <canvas id="pv"></canvas>
+        <div id="pvcap" class="cap"></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="card">
+      <h1>ตั้งค่า</h1>
+      <label>เลือกรูปภาพ</label>
+      <input type="file" id="file" accept="image/*">
+      <label>ขนาดจิ๊กซอว์ (จำนวนช่องต่อแถว ช่องเป็นสี่เหลี่ยมจัตุรัส)</label>
+      <select id="size">
+        <option value="3">3 ช่องต่อแถว</option>
+        <option value="4" selected>4 ช่องต่อแถว</option>
+        <option value="5">5 ช่องต่อแถว</option>
+        <option value="6">6 ช่องต่อแถว</option>
+        <option value="8">8 ช่องต่อแถว</option>
+      </select>
+      <div class="row"><button id="newBtn" class="p">เริ่มเกมใหม่</button></div>
+    </div>
+    <div class="card">
+      <h1>ข้อความถึงผู้เล่น</h1>
+      <label>ชื่อภาพ / เหตุการณ์</label>
+      <input type="text" id="title" placeholder="เช่น สงครามโลกครั้งที่ 2">
+      <label>รายละเอียด</label>
+      <textarea id="desc" placeholder="เช่น ปี ค.ศ. 1939–1945 …"></textarea>
+      <div class="row"><button id="showBtn" class="p">แสดงข้อความให้ผู้เล่น</button></div>
+    </div>
+    <div class="card">
+      <h1>หน้าจอผู้เล่น</h1>
+      <div class="row"><button id="openBtn">↗ เปิดหน้าต่างผู้เล่น</button></div>
+      <p class="hint">ปุ่มนี้จะเปิดไฟล์เดียวกันในโหมดผู้เล่น (เติม <code>#player</code> ท้ายที่อยู่) ลากหน้าต่างไปไว้จอที่สอง/โปรเจกเตอร์ แล้วควบคุมจากหน้านี้ ต้องใช้เบราว์เซอร์เดียวกันบนเครื่องเดียวกัน (แนะนำ Chrome / Edge)</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const PLAYER = location.hash === '#player' || /[?&]player/.test(location.search);
+let bc = null;
+try { bc = new BroadcastChannel('jigsaw-room'); } catch (e) {}
+let S = null, img = new Image(), imgSrc = '', paths = [], hover = -1;
+const cv = $(PLAYER ? 'pcv' : 'hcv');
+const pv = PLAYER ? null : $('pv');
+const ctx = cv.getContext('2d');
+
+function loadImage(src, cb){
+  const t = new Image();
+  t.onload = () => { img = t; imgSrc = src; cb && cb(); };
+  t.src = src;
+}
+
+function demoImage(){
+  const c = document.createElement('canvas'); c.width = 960; c.height = 640;
+  const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0,0,0,640);
+  gr.addColorStop(0,'#ff9a5a'); gr.addColorStop(.55,'#ffd98a'); gr.addColorStop(1,'#5aa9ff');
+  g.fillStyle = gr; g.fillRect(0,0,960,640);
+  g.fillStyle = '#fff6c9'; g.beginPath(); g.arc(680,220,90,0,7); g.fill();
+  g.fillStyle = '#5a3d7a'; g.beginPath(); g.moveTo(0,460); g.lineTo(220,220); g.lineTo(420,440); g.lineTo(620,260); g.lineTo(960,470); g.lineTo(960,640); g.lineTo(0,640); g.fill();
+  g.fillStyle = '#2d6a4f'; g.fillRect(0,520,960,120);
+  g.fillStyle = '#fff'; g.font = 'bold 64px sans-serif'; g.fillText('DEMO', 60, 110);
+  return c.toDataURL('image/jpeg', .85);
+}
+
+/* ---------- ช่องสี่เหลี่ยมจัตุรัส ---------- */
+let CELL = 0;
+function build(){
+  if (!S || !img.naturalWidth) return;
+  CELL = Math.floor(Math.min(960, img.naturalWidth) / S.cols);
+  const W = CELL*S.cols, H = CELL*S.rows;
+  cv.width = W; cv.height = H;
+  if (pv){ pv.width = W; pv.height = H; }
+  paths = [];
+  for (let r=0;r<S.rows;r++) for (let c=0;c<S.cols;c++){
+    const p = new Path2D(); p.rect(c*CELL, r*CELL, CELL, CELL); paths.push(p);
+  }
+}
+function cover(g, c){
+  const a = c.width/c.height, ia = img.naturalWidth/img.naturalHeight;
+  let sx=0, sy=0, sw=img.naturalWidth, sh=img.naturalHeight;
+  if (ia > a){ sw = sh*a; sx = (img.naturalWidth-sw)/2; } else { sh = sw/a; sy = (img.naturalHeight-sh)/2; }
+  g.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+}
+
+/* ---------- วาด ---------- */
+function paint(c, player){
+  const g = c.getContext('2d');
+  g.fillStyle = '#14142a'; g.fillRect(0,0,c.width,c.height);
+  if (!player) cover(g, c);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  paths.forEach((p,i) => {
+    const rev = S.revealed.includes(i);
+    const x = (i % S.cols)*CELL, y = Math.floor(i / S.cols)*CELL;
+    if (player && rev){ g.save(); g.clip(p); cover(g, c); g.restore(); }
+    if (!rev){
+      g.fillStyle = player ? '#2a2a55' : 'rgba(10,10,30,.68)'; g.fill(p);
+      g.font = `bold ${Math.round(CELL*.4)}px sans-serif`;
+      g.fillStyle = player ? '#a9a9ff' : 'rgba(255,255,255,.9)';
+      g.fillText(i+1, x+CELL/2, y+CELL/2);
+    } else if (!player){
+      g.font = `bold ${Math.round(CELL*.16)}px sans-serif`;
+      g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.6)'; g.fillStyle = '#fff';
+      g.strokeText(i+1, x+CELL*.16, y+CELL*.16); g.fillText(i+1, x+CELL*.16, y+CELL*.16);
+    }
+    g.lineWidth = 2;
+    g.strokeStyle = rev ? 'rgba(255,255,255,.35)' : (player ? '#0d0d20' : 'rgba(255,255,255,.5)');
+    g.stroke(p);
+  });
+  if (!player && hover >= 0){ g.lineWidth = 4; g.strokeStyle = '#ffd54a'; g.stroke(paths[hover]); }
+}
+function draw(){
+  if (!S || !img.naturalWidth) return;
+  if (paths.length !== S.cols*S.rows) build();
+  paint(cv, PLAYER);
+  if (PLAYER) $('prog').textContent = `เปิดแล้ว ${S.revealed.length} / ${S.cols*S.rows} ช่อง`;
+  else { paint(pv, true); $('showBtn').textContent = S.show ? 'ซ่อนข้อความจากผู้เล่น' : 'แสดงข้อความให้ผู้เล่น'; }
+}
+function showCaption(el){
+  el.innerHTML = '';
+  if (S && S.show && (S.title || S.desc)){
+    const b = document.createElement('b'); b.textContent = S.title;
+    const s = document.createElement('span'); s.textContent = S.desc;
+    el.append(b, s);
+  }
+}
+
+/* ---------- ส่งข้อมูลระหว่างหน้าต่าง (BroadcastChannel + localStorage) ---------- */
+function send(withImg){
+  if (!S) return;
+  if (bc) { try { bc.postMessage({t:'state', S, img: withImg ? imgSrc : undefined}); } catch(e){} }
+  try {
+    if (withImg) localStorage.setItem('jigsaw-img', imgSrc);
+    localStorage.setItem('jigsaw-state', JSON.stringify({S, ts: Date.now()}));
+  } catch (e) {}
+}
+
+if (PLAYER){
+  document.body.classList.add('player');
+  $('playerView').style.display = 'block';
+  const apply = (s, im) => {
+    const changed = !S || S.id !== s.id;
+    S = s; $('wait').style.display = 'none'; cv.style.display = 'block';
+    showCaption($('cap'));
+    if (im && im !== imgSrc) loadImage(im, () => { build(); draw(); });
+    else { if (changed && img.naturalWidth) build(); draw(); }
+  };
+  if (bc) bc.onmessage = e => { if (e.data.t === 'state') apply(e.data.S, e.data.img); };
+  window.addEventListener('storage', e => {
+    if (e.key === 'jigsaw-state' && e.newValue){
+      try { apply(JSON.parse(e.newValue).S, localStorage.getItem('jigsaw-img')); } catch(err){}
+    }
+  });
+  try {
+    const st = localStorage.getItem('jigsaw-state');
+    if (st) apply(JSON.parse(st).S, localStorage.getItem('jigsaw-img'));
+  } catch (e) {}
+  if (bc) bc.postMessage({t:'hello'});
+} else {
+  $('hostView').style.display = 'grid';
+  if (bc) bc.onmessage = e => { if (e.data.t === 'hello') send(true); };
+
+  function newPuzzle(){
+    const cols = Number($('size').value);
+    const rows = Math.max(1, Math.round(cols*img.naturalHeight/img.naturalWidth));
+    S = { id: Date.now(), cols, rows, revealed: [], show: S ? S.show : false,
+      title: $('title').value, desc: $('desc').value };
+    build(); draw();
+    showCaption($('pvcap'));
+    send(true);
+  }
+  const update = () => { draw(); showCaption($('pvcap')); send(false); };
+
+  $('newBtn').onclick = newPuzzle;
+  $('file').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, 1200/im.width), c = document.createElement('canvas');
+        c.width = Math.round(im.width*k); c.height = Math.round(im.height*k);
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        loadImage(c.toDataURL('image/jpeg', .85), newPuzzle);
+      };
+      im.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  };
+  $('allBtn').onclick = () => { S.revealed = paths.map((_,i)=>i); update(); };
+  $('noneBtn').onclick = () => { S.revealed = []; update(); };
+  $('rndBtn').onclick = () => {
+    const left = paths.map((_,i)=>i).filter(i => !S.revealed.includes(i));
+    if (left.length){ S.revealed.push(left[Math.floor(Math.random()*left.length)]); update(); }
+  };
+  const jumpGo = () => {
+    const i = Number($('jump').value) - 1;
+    if (!S || !(i >= 0 && i < paths.length)) return;
+    const k = S.revealed.indexOf(i);
+    if (k >= 0) S.revealed.splice(k,1); else S.revealed.push(i);
+    $('jump').value = ''; update();
+  };
+  $('jumpBtn').onclick = jumpGo;
+  $('jump').onkeydown = e => { if (e.key === 'Enter') jumpGo(); };
+  $('showBtn').onclick = () => { S.show = !S.show; update(); };
+  ['title','desc'].forEach(id => $(id).oninput = () => { S.title = $('title').value; S.desc = $('desc').value; update(); });
+  $('openBtn').onclick = () => window.open(location.href.split('#')[0] + '#player', 'jigsawPlayer', 'width=1000,height=700');
+
+  const hit = e => {
+    const r = cv.getBoundingClientRect();
+    const x = (e.clientX-r.left)*cv.width/r.width, y = (e.clientY-r.top)*cv.height/r.height;
+    return paths.findIndex(p => ctx.isPointInPath(p,x,y));
+  };
+  cv.onmousemove = e => { const h = hit(e); if (h !== hover){ hover = h; draw(); } };
+  cv.onmouseleave = () => { hover = -1; draw(); };
+  cv.onclick = e => {
+    const i = hit(e); if (i < 0) return;
+    const k = S.revealed.indexOf(i);
+    if (k >= 0) S.revealed.splice(k,1); else S.revealed.push(i);
+    update();
+  };
+
+  loadImage(demoImage(), newPuzzle);
+}
+</script>
+</body>
+</html>
